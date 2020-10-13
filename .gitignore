@@ -1,0 +1,6 @@
+app-env-configmap.yml
+secrets.yml
+docker-app/app/*
+docker-app/data/*
+
+!.keep

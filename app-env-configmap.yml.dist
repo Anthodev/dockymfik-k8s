@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-env-configmap
+data:
+  app-env: dev
+  letsencrypt-email: 
+  db-name: 
+  db-user: 

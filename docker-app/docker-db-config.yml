@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-db
+  labels:
+    app: app-php
+spec:
+  ports:
+  - protocol: TCP
+    port: 3306
+    targetPort: 3306
+  selector:
+    app: app-php
+    tier: database
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-db
+  labels:
+    app: app-php
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-php
+      tier: database
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: app-php
+        tier: database
+    spec:
+      containers:
+      - image: mysql:5.7
+        name: app-db
+        securityContext:
+          privileged: true
+        # TODO Think to modify below according to the db engine
+        volumeMounts:
+          - mountPath: /var/lib/mysql
+            name: database-storage
+        env:
+          - name: DB_NAME
+            valueFrom:
+              configMapKeyRef:
+                name: app-env-configmap
+                key: db-name
+          - name: DB_USER
+            valueFrom:
+              configMapKeyRef:
+                name: app-env-configmap
+                key: db-user
+          - name: MYSQL_ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: app-secrets
+                key: db-pwd
+        ports:
+        - containerPort: 3306
+      securityContext: {}
+      volumes:
+      - name: database-storage
+        persistentVolumeClaim:
+          claimName: database-pvc

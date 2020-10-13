@@ -1,0 +1,115 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-php
+  labels:
+      app: app-php
+spec:
+  ports:
+    - protocol: TCP
+      name: web
+      port: 80
+  selector:
+    app: app-php
+    tier: app
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-php
+  labels:
+    app: app-php
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-php
+      tier: app
+  template:
+    metadata:
+      labels:
+        app: app-php
+        tier: app
+    spec:
+      containers:
+        - name: app-php
+          image: thecodingmachine/php:7.3-v3-apache-node12
+          securityContext:
+            privileged: true
+            allowPrivilegeEscalation: true # never use "false" here.
+          volumeMounts:
+            - name: app-files
+              mountPath: /var/www/html
+          env:
+            - name: APACHE_DOCUMENT_ROOT
+              value: "public/"
+            - name: PHP_EXTENSION_XDEBUG
+              value: "1"
+            - name: PHP_EXTENSION_GD
+              value: "1"
+            - name: PHP_INI_MEMORY_LIMIT
+              value: "2G"
+            - name: APP_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: app-env-configmap
+                  key: app-env
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: app-env-configmap
+                  key: db-name
+            - name: DB_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: db-pwd
+            - name: DATABASE_URL
+              value: mysql://root:$(DB_PWD)@app-db:3306/$(DB_NAME)
+            - name: JWT_PASSPHRASE
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt
+            - name: STARTUP_COMMAND_1
+              value: chown docker:docker -R /var/www/html
+          ports:
+            - name: web
+              containerPort: 80
+      securityContext: {}
+      volumes:
+        - name: app-files
+          persistentVolumeClaim:
+            claimName: app-pvc
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: simpleingressroute
+  namespace: default
+spec:
+  entryPoints:
+    - web
+  routes:
+  - match: Host(`app.docker.localhost`)
+    kind: Rule
+    services:
+    - name: app-php
+      port: 80
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ingressroutetls
+  namespace: default
+spec:
+  entryPoints:
+    - websecure
+  routes:
+  - match: Host(`app.docker.localhost`)
+    kind: Rule
+    services:
+    - name: app-php
+      port: 80
+  tls:
+    certResolver: myresolver
